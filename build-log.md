@@ -17,3 +17,5 @@
 - Surprise: a single noise-only run gave p = 0.35, not 0.5. A random walk is one random path; √t describes the RMS over many runs. Averaging 20 seeds fixed it.
 - Takeaway for week 1: measuring and subtracting the gyro bias at rest is the single biggest win.
 - Also found: a perfect gyro gives ~1e-6° error, not 0, because arccos is very sensitive near 1.
+
+**Next session:** set up PlatformIO (board: Adafruit Feather ESP32-S3, Arduino framework) and write the I2C scan, so it's ready to run when parts arrive (~Nov 3–6).
