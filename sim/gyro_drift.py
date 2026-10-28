@@ -67,29 +67,40 @@ N = len(t)                # number of samples (6000)
 # np.tile repeats the row N times -> shape (N, 3), one row per timestep.
 omega_true = np.tile([0.0, 0.0, 0.5], (N, 1))
 
-# --- Gyro error model ----------------------------------------------------
-# A real gyro reports: measured = true + bias + noise
-#   bias  : constant offset per axis (rad/s). Integrates into error that grows linearly with time.
-#   noise : random every sample (white noise, std = sigma). Integrates into a random walk (~sqrt(t)).
-bias = np.array([0.01, -0.005, 0.02])   # rad/s
-sigma = 0.01                            # rad/s, noise standard deviation
+q_true = integrate(omega_true, dt)   # ground truth orientation
 
-rng = np.random.default_rng(0)          # fixed seed -> identical noise every run, so comparisons are fair
-noise = rng.normal(0.0, sigma, size=(N, 3))
 
-omega_meas = omega_true + bias + noise  # what the gyro actually hands us
+def drift_error(bias, sigma, seed=0):
+    """Simulate a gyro with this bias + noise, integrate it, and return the error angle (deg) at every step.
 
-# --- Integrate both into orientations -----------------------------------
-q_true = integrate(omega_true, dt)   # ground truth
-q_est = integrate(omega_meas, dt)    # what we'd believe using only the gyro
+    A real gyro reports: measured = true + bias + noise
+      bias  : constant offset per axis (rad/s). Integrates into error that grows linearly with time.
+      noise : random every sample (white noise, std = sigma). Integrates into a random walk (~sqrt(t)).
+    """
+    rng = np.random.default_rng(seed)   # same seed -> same noise, so cases are compared fairly
+    noise = rng.normal(0.0, sigma, size=(N, 3))
+    omega_meas = omega_true + bias + noise   # what the gyro actually hands us
+    q_est = integrate(omega_meas, dt)        # what we'd believe using only the gyro
+
+    # q_err = conj(q_true) ⊗ q_est is the rotation that takes the TRUE orientation to the ESTIMATE.
+    # If they matched, q_err = [1, 0, 0, 0]. Its w part is cos(angle/2), so angle = 2·arccos(|w|).
+    #   abs  : q and -q are the same rotation; abs picks the short way round (0..180°).
+    #   clip : rounding can give |w| = 1.0000000002, and arccos(>1) = nan.
+    err_deg = np.zeros(N)
+    for n in range(N):
+        q_err = quat_mult(conj(q_true[n]), q_est[n])
+        err_deg[n] = np.degrees(2 * np.arccos(np.clip(np.abs(q_err[0]), -1, 1)))
+    return err_deg
+
+
+def growth_exponent(err):
+    """Fit err ≈ C·t^p and return p.  Taking logs: log(err) = log(C) + p·log(t), a straight line with slope p.
+    p ≈ 1 means linear growth (bias), p ≈ 0.5 means sqrt(t) growth (random walk from noise)."""
+    p, _ = np.polyfit(np.log(t[1:]), np.log(err[1:]), 1)   # skip t=0, log(0) is -inf
+    return p
+
 
 # --- Sanity checks -------------------------------------------------------
-# Noise averages out to ~0 over 6000 samples, so the mean error should be ~= bias.
-mean_err = (omega_meas - omega_true).mean(axis=0)
-print("mean measured error:", mean_err)
-print("true bias:          ", bias)
-assert np.allclose(mean_err, bias, atol=1e-3), "mean error should match the bias"
-
 # Quaternion product rules: i·j = k, j·i = -k (order matters!)
 i, j, k = np.array([0, 1, 0, 0]), np.array([0, 0, 1, 0]), np.array([0, 0, 0, 1])
 assert np.allclose(quat_mult(i, j), k)
@@ -97,28 +108,50 @@ assert np.allclose(quat_mult(j, i), -k)
 
 # 60 s at 0.5 rad/s about z = 30 rad total -> q = [cos(15), 0, 0, sin(15)] (half-angle again)
 assert np.allclose(q_true[-1], [np.cos(15), 0, 0, np.sin(15)], atol=1e-6)
-print("final q_true:", q_true[-1])
-print("final q_est: ", q_est[-1])
 
-# --- Orientation error over time ----------------------------------------
-# q_err = conj(q_true) ⊗ q_est is the rotation that takes the TRUE orientation to the ESTIMATE.
-# If they matched, q_err = [1, 0, 0, 0]. Its w part is cos(angle/2), so angle = 2·arccos(|w|).
-#   abs  : q and -q are the same rotation; abs picks the short way round (0..180°).
-#   clip : rounding can give |w| = 1.0000000002, and arccos(>1) = nan.
-err_deg = np.zeros(N)
-for n in range(N):
-    q_err = quat_mult(conj(q_true[n]), q_est[n])
-    err_deg[n] = np.degrees(2 * np.arccos(np.clip(np.abs(q_err[0]), -1, 1)))
+# A perfect gyro (no bias, no noise) should give ~zero error.
+# (Not exactly 0: arccos is super sensitive near 1, so float rounding shows up as ~1e-6 deg.)
+assert drift_error(np.zeros(3), 0.0).max() < 1e-4
 
-print(f"error after {T:.0f} s: {err_deg[-1]:.1f} deg")
+# --- Experiment: which error source causes the drift? -------------------
+bias = np.array([0.01, -0.005, 0.02])   # rad/s
+sigma = 0.01                            # rad/s, noise standard deviation
+
+cases = {
+    "bias + noise": drift_error(bias, sigma),
+    "bias only":    drift_error(bias, 0.0),
+    "noise only":   drift_error(np.zeros(3), sigma),
+}
+# One noise run is just ONE random path, so its growth wobbles. The sqrt(t) law is about the
+# typical size across many runs, so also take the RMS (root-mean-square) error over 20 seeds.
+runs = np.array([drift_error(np.zeros(3), sigma, seed=s) for s in range(20)])
+cases["noise only, RMS of 20"] = np.sqrt((runs ** 2).mean(axis=0))
+
+print(f"{'case':<22}{'error @ 60 s':>14}{'growth t^p':>12}")
+for name, err in cases.items():
+    print(f"{name:<22}{err[-1]:>11.2f} deg{growth_exponent(err):>10.2f}")
+
+# Bias error grows ~linearly (p ≈ 1); noise error grows ~sqrt(t) on average (p ≈ 0.5).
+assert 0.9 < growth_exponent(cases["bias only"]) < 1.1
+assert 0.4 < growth_exponent(cases["noise only, RMS of 20"]) < 0.6
 
 # --- Plot ----------------------------------------------------------------
 import matplotlib.pyplot as plt
 
-plt.plot(t, err_deg)
-plt.xlabel("time (s)")
-plt.ylabel("orientation error (deg)")
-plt.title(f"Gyro-only drift (bias = {bias} rad/s, σ = {sigma} rad/s)")
-plt.grid(True)
-plt.savefig("sim/gyro_drift.png", dpi=120)   # saved so it can go in the README
+fig, (ax_lin, ax_log) = plt.subplots(1, 2, figsize=(12, 4.5))
+for name, err in cases.items():
+    ax_lin.plot(t, err, label=name)
+    ax_log.loglog(t[1:], err[1:], label=name)
+
+# Left: normal axes. Shows bias dominates; noise-only hugs zero.
+ax_lin.set(xlabel="time (s)", ylabel="orientation error (deg)", title="Linear scale")
+# Right: log-log axes turn t^p into a straight line with slope p, so you can SEE linear vs sqrt growth.
+ax_log.set(xlabel="time (s)", ylabel="orientation error (deg)", title="Log-log scale (slope = growth exponent)")
+for ax in (ax_lin, ax_log):
+    ax.grid(True, which="both", alpha=0.4)
+    ax.legend()
+
+fig.suptitle(f"Gyro-only drift: bias = {bias} rad/s, σ = {sigma} rad/s, 100 Hz")
+fig.tight_layout()
+fig.savefig("sim/gyro_drift.png", dpi=120)   # saved so it can go in the README
 plt.show()
