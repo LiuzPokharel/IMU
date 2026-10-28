@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.pio/
+.vscode/
+.DS_Store
+*.csv
+CLAUDE.md
