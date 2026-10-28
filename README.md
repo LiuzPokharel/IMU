@@ -11,7 +11,7 @@ Estimating 3D orientation from a 9-DOF IMU with filters I wrote myself (compleme
 - **Host:** Python (numpy, matplotlib, pyserial) for logging, filtering, and plots
 
 ## Roadmap
-- [ ] Gyro-drift simulation (Python): integrate a noisy, biased gyro into a quaternion and plot how the error grows
+- [x] Gyro-drift simulation (Python): integrate a noisy, biased gyro into a quaternion and plot how the error grows
 - [ ] Raw data: I2C scan, read gyro + accel at ~100 Hz, stream over serial, live plot
 - [ ] Complementary filter for roll/pitch
 - [ ] Quaternion gyro integration with accelerometer correction
@@ -19,7 +19,15 @@ Estimating 3D orientation from a 9-DOF IMU with filters I wrote myself (compleme
 - [ ] Compare against the BNO085's onboard fusion (error in degrees, drift over 5 minutes)
 
 ## Results
-_Coming soon._
+
+### Gyro-only drift (simulation)
+Gyro spinning at 0.5 rad/s about z, with bias `[0.01, -0.005, 0.02]` rad/s and noise σ = 0.01 rad/s at 100 Hz, integrated into a quaternion with no correction.
+
+![Gyro drift](sim/gyro_drift.png)
+
+- **69.3° of error after 60 s**, growing linearly, so bias dominates and noise barely shows.
+- That's almost exactly the z bias alone (0.02 × 60 = 1.2 rad ≈ 69°). The x/y bias is fixed in the spinning body frame, so it rotates with the board and mostly cancels out.
+- Takeaway: integrating the gyro alone is unusable within a minute, so the filters need an absolute reference (gravity from the accelerometer, magnetic north from the magnetometer).
 
 ## Setup
 ```bash

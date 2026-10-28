@@ -20,6 +20,11 @@ def quat_mult(q, r):
     return np.array([a, b, c, d])
 
 
+def conj(q):
+    """Conjugate [w, -x, -y, -z]. For a unit quaternion this is the inverse rotation."""
+    return q * np.array([1, -1, -1, -1])
+
+
 def integrate(omega, dt):
     """Turn a stream of body-frame angular rates (N, 3) into orientations (N, 4).
 
@@ -94,3 +99,26 @@ assert np.allclose(quat_mult(j, i), -k)
 assert np.allclose(q_true[-1], [np.cos(15), 0, 0, np.sin(15)], atol=1e-6)
 print("final q_true:", q_true[-1])
 print("final q_est: ", q_est[-1])
+
+# --- Orientation error over time ----------------------------------------
+# q_err = conj(q_true) ⊗ q_est is the rotation that takes the TRUE orientation to the ESTIMATE.
+# If they matched, q_err = [1, 0, 0, 0]. Its w part is cos(angle/2), so angle = 2·arccos(|w|).
+#   abs  : q and -q are the same rotation; abs picks the short way round (0..180°).
+#   clip : rounding can give |w| = 1.0000000002, and arccos(>1) = nan.
+err_deg = np.zeros(N)
+for n in range(N):
+    q_err = quat_mult(conj(q_true[n]), q_est[n])
+    err_deg[n] = np.degrees(2 * np.arccos(np.clip(np.abs(q_err[0]), -1, 1)))
+
+print(f"error after {T:.0f} s: {err_deg[-1]:.1f} deg")
+
+# --- Plot ----------------------------------------------------------------
+import matplotlib.pyplot as plt
+
+plt.plot(t, err_deg)
+plt.xlabel("time (s)")
+plt.ylabel("orientation error (deg)")
+plt.title(f"Gyro-only drift (bias = {bias} rad/s, σ = {sigma} rad/s)")
+plt.grid(True)
+plt.savefig("sim/gyro_drift.png", dpi=120)   # saved so it can go in the README
+plt.show()
