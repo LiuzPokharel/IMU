@@ -37,5 +37,13 @@
    digitalWrite(PIN_I2C_POWER, HIGH);
    delay(10);
    ```
-5. **Port name:** close the serial monitor first, because only one program can hold the port. Find the port with `ls /dev/cu.usb*`, then run `.venv/bin/python host/live_plot.py <port>`.
-6. **After the scan passes:** switch to the `imu` environment in VS Code's bottom bar (or set `default_envs = imu`) to upload the IMU sketch.
+5. **After the scan passes:** switch to the `imu` environment in VS Code's bottom bar (or set `default_envs = imu`) to upload the IMU sketch. The serial monitor should show CSV rows.
+6. **Live plot:** close the serial monitor first, because only one program can hold the port. Find the port with `ls /dev/cu.usb*`, then run `.venv/bin/python host/live_plot.py <port>`.
+7. **Sanity moves:** at rest the gyro should be near 0 and the accelerometer should show about 9.8 on one axis. Rotating the board should spike the gyro, and tilting it should move gravity between accelerometer axes and leave it there. Flipping it over should flip the sign of z.
+
+### Lessons
+- Several bugs compiled cleanly: a hard-coded address, checking the wrong value, a counter outside the `if`, a missing `!`, and an extra zero in the 100 Hz interval. The compiler only catches syntax, so the logic needs a known-answer test, either an `assert` or the expected hardware output.
+- One mistake can cause a whole list of compiler errors. Fix the first one and recompile.
+- Changing the fake bias to 0.05 made the gyro plot *look* cleaner while making the drift about 5× worse. The noise hadn't changed; the axis just zoomed out. Read the numbers in the plot titles, not the look of the plot.
+
+**Next session (hardware day, ~Nov 4):** work through the checklist above, then add CSV saving to the plotter for the Week 1 at-rest drift measurement.
