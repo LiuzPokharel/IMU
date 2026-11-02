@@ -23,15 +23,16 @@
 ## 2026-11-01
 - Created the PlatformIO project in `firmware/` (board `adafruit_feather_esp32s3`, Adafruit BNO08x library). An empty sketch compiles.
 - USB CDC is already on: the board definition sets `ARDUINO_USB_CDC_ON_BOOT=1`, so no extra build flag is needed.
-- Wrote the I2C scan (`firmware/src/main.cpp`): it tries addresses 0x08–0x77 and counts the ones that ACK. It compiles, but it's untested until the parts arrive.
+- Wrote the I2C scan (`firmware/src/scan/main.cpp`): it tries addresses 0x08–0x77 and counts the ones that ACK. It compiles, but it's untested until the parts arrive.
 
 ### Hardware day checklist
 1. **Cable:** push the STEMMA QT cable fully into both the Feather and the BNO085. It should seat with a click. The breakout's power LED should light when the Feather is powered.
 2. **First upload:** if the upload can't connect, put the board in bootloader mode: hold BOOT, tap RESET, release BOOT, then upload. Press RESET afterward to run the new code. The serial port can disappear and come back during this.
-3. **I2C scan:** expect `0x4A` (`0x4B` if the address jumper is bridged).
+3. **I2C scan:** the `scan` sketch uploads by default. Open the serial monitor and expect `0x4A` (`0x4B` if the address jumper is bridged).
 4. **If the scan finds nothing:** check the cable first, then the Feather's STEMMA QT power pin, GPIO 7 (`PIN_I2C_POWER`). The board's startup code already drives it HIGH, so add this at the top of `setup()` only to rule it out:
    ```cpp
    pinMode(PIN_I2C_POWER, OUTPUT);
    digitalWrite(PIN_I2C_POWER, HIGH);
    delay(10);
    ```
+5. **After the scan passes:** switch to the `imu` environment in VS Code's bottom bar (or set `default_envs = imu`) to upload the IMU sketch.
