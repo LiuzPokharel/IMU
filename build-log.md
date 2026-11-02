@@ -25,6 +25,7 @@
 - USB CDC is already on: the board definition sets `ARDUINO_USB_CDC_ON_BOOT=1`, so no extra build flag is needed.
 - Wrote the I2C scan (`firmware/src/scan/main.cpp`): it tries addresses 0x08–0x77 and counts the ones that ACK. It compiles, but it's untested until the parts arrive.
 - Wrote the first BNO085 sketch (`firmware/src/imu/main.cpp`): uncalibrated gyro + accelerometer at 100 Hz, printed as CSV rows `timestamp_us,sensor,x,y,z`. Gyro and accel arrive as separate reports, so each row holds one report. It compiles, but it's untested until the parts arrive.
+- Wrote the live plotter (`host/live_plot.py`): `--fake` streams fake rows in the firmware's CSV format, or pass a serial port for the real board. Titles show each sensor's mean and measured rate. In fake mode the gyro mean reads `+0.0100, -0.0049, +0.0202`, matching the bias put in.
 
 ### Hardware day checklist
 1. **Cable:** push the STEMMA QT cable fully into both the Feather and the BNO085. It should seat with a click. The breakout's power LED should light when the Feather is powered.
@@ -36,4 +37,5 @@
    digitalWrite(PIN_I2C_POWER, HIGH);
    delay(10);
    ```
-5. **After the scan passes:** switch to the `imu` environment in VS Code's bottom bar (or set `default_envs = imu`) to upload the IMU sketch.
+5. **Port name:** close the serial monitor first, because only one program can hold the port. Find the port with `ls /dev/cu.usb*`, then run `.venv/bin/python host/live_plot.py <port>`.
+6. **After the scan passes:** switch to the `imu` environment in VS Code's bottom bar (or set `default_envs = imu`) to upload the IMU sketch.
