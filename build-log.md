@@ -23,6 +23,7 @@
 ## 2026-11-01
 - Created the PlatformIO project in `firmware/` (board `adafruit_feather_esp32s3`, Adafruit BNO08x library). An empty sketch compiles.
 - USB CDC is already on: the board definition sets `ARDUINO_USB_CDC_ON_BOOT=1`, so no extra build flag is needed.
+- Wrote the I2C scan (`firmware/src/main.cpp`): it tries addresses 0x08–0x77 and counts the ones that ACK. It compiles, but it's untested until the parts arrive.
 
 ### Hardware day checklist
 1. **Cable:** push the STEMMA QT cable fully into both the Feather and the BNO085. It should seat with a click. The breakout's power LED should light when the Feather is powered.
