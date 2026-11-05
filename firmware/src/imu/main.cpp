@@ -4,10 +4,10 @@ Adafruit_BNO08x bno;
 
 void setup() {
     Serial.begin(115200);
-    
-    while (!Serial){
-        delay(10);
-    }
+
+    // Wait up to 3 s for a computer to open the port, then start anyway. Without the timeout the
+    // board sits frozen until something connects, so it can't start streaming from power-on.
+    while (!Serial && millis() < 3000) delay(10);
 
     if(!bno.begin_I2C()){
         Serial.println("BNO085 not found");
