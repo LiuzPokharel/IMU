@@ -106,7 +106,8 @@ if __name__ == "__main__":
     if args.fake == bool(args.port):
         parser.error("give a serial port or --fake, not both or neither")
 
-    lines = fake_lines() if args.fake else serial_lines(serial.Serial(args.port, 115200, timeout=1))
+    # exclusive=True: if another program (e.g. the serial monitor) has the port, fail now with a clear error
+    lines = fake_lines() if args.fake else serial_lines(serial.Serial(args.port, 115200, timeout=1, exclusive=True))
     data = {"g": deque(maxlen=WINDOW), "a": deque(maxlen=WINDOW)}
     threading.Thread(target=read_stream, args=(lines, data), daemon=True).start()
 

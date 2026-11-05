@@ -56,3 +56,7 @@
 - **Measured rates (from timestamps):** gyro **100.5 Hz** (requested 100), accelerometer **~123 Hz**. The BNO085 picks the nearest rate it supports.
 - **Accelerometer magnitude:** about 9.57 m/s² in one orientation and 9.98 in another, against 9.81 true, so roughly a 2–4% error that depends on orientation. The simulation didn't model this.
 - **Gyro resolution:** readings move in steps of 0.001953 rad/s (1/512). At rest they stay within about ±0.008 rad/s.
+- The scan found 0x4A on the first try.
+- The timestamp bug: value.timestamp printed as about 2³² minus a few thousand, and the fix was switching to micros().
+- Gravity measured at about 9.99 m/s², the board’s resting tilt, and anything you noticed in the live plot.
+
