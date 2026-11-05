@@ -47,3 +47,12 @@
 - Changing the fake bias to 0.05 made the gyro plot *look* cleaner while making the drift about 5× worse. The noise hadn't changed; the axis just zoomed out. Read the numbers in the plot titles, not the look of the plot.
 
 **Next session (hardware day, ~Nov 4):** work through the checklist above, then add CSV saving to the plotter for the Week 1 at-rest drift measurement.
+
+## 2026-11-04: hardware day
+- **I2C scan:** worked on the first upload and found 2 devices: the BNO085 plus (most likely) the Feather's onboard battery monitor. Addresses: _to fill in_.
+- **PlatformIO only shows its toolbar** when the open folder has `platformio.ini` at its root, so open `firmware/` in its own VS Code window.
+- **Port lock (`Errno 35`):** a serial monitor left open from the scan blocked the next one. Only one program can hold the port.
+- **Broken timestamps:** every row printed about 4294964000 (just below 2³²) and didn't increase, so the live plot showed `-908182 Hz`. Root cause: the Adafruit BNO08x library never records the host time when it reads a report (`t_us` is never set in `Adafruit_BNO08x.cpp`), so `value.timestamp` is only the sensor's correction, "sample time minus read time": a few ms, negative. Fix: `micros() + (int32_t)value.timestamp`. Plain `micros()` would be 2–5 ms late, by a different amount on every row.
+- **Measured rates (from timestamps):** gyro **100.5 Hz** (requested 100), accelerometer **~123 Hz**. The BNO085 picks the nearest rate it supports.
+- **Accelerometer magnitude:** about 9.57 m/s² in one orientation and 9.98 in another, against 9.81 true, so roughly a 2–4% error that depends on orientation. The simulation didn't model this.
+- **Gyro resolution:** readings move in steps of 0.001953 rad/s (1/512). At rest they stay within about ±0.008 rad/s.
