@@ -58,126 +58,34 @@
 - **Gyro resolution:** readings move in steps of 0.001953 rad/s (1/512). At rest they stay within about ±0.008 rad/s.
 - The scan found 0x4A on the first try.
 - The timestamp bug: value.timestamp printed as about 2³² minus a few thousand, and the fix was switching to micros().
-- Gravity measured at about 9.99 m/s², the board’s resting tilt, and anything you noticed in the live plot.
+- Gravity measured at about 9.99 m/s², the board’s resting tilt.
 
+## 2026-11-15: filters, comparison, 3D view (no board connected)
+Written with Claude in one session, checked on simulated data only. Nothing here has run on the board yet.
 
-## 2026-11-05: prep for the at-rest drift measurement (done by Claude while I was in class)
+- **Firmware (`imu`):** also streams the BNO085's own orientation (`SH2_GAME_ROTATION_VECTOR`, gyro + accel, no magnetometer) as `t,q,w,x,y,z` rows. It compiles; not uploaded.
+- **`host/filters.py`:** complementary filter (roll, pitch), quaternion integration with accelerometer correction, and Madgwick. Checks at the bottom: known accelerometer angles, a perfect gyro gives the right angle, a 30° wrong start converges back, and the complementary filter at rest settles at error = bias × τ.
+- **`host/compare.py`:** runs every method over a recording and scores it against the `q` rows. `--fake` makes 60 s of motion with a known true orientation.
+- **`host/view3d.py`:** live 3D box following Madgwick, with the BNO085 as a dashed outline and the difference in degrees.
+- `record.py`, `live_plot.py` and `analyze_rest.py` accept the new `q` rows.
 
-### What changed
-1. **Firmware (`firmware/src/imu/main.cpp`)**
-   - Timestamps were already right. `t_us = micros() + (int32_t)value.timestamp` calls `micros()` once per event, right after `getSensorEvent()` returns, so gyro and accel rows each get their own sample time.
-   - The `while (!Serial)` wait is now `while (!Serial && millis() < 3000) delay(10);`. Before, the board froze at power-on until a computer opened the port. Now it starts streaming after at most 3 s, which a "from power-on" warm-up recording needs. It compiles. **It needs a re-upload** (env `imu`).
-2. **`host/record.py`** saves the stream to `data/<date>_<label>.csv` with a `t_us,sensor,x,y,z` header.
-   - Options: `port`, `--seconds` (default 600), `--label` (required).
-   - Prints progress every 30 s with row counts and rates. It saves only rows that parse, so a half row from connecting mid-stream never reaches the file. Anything else the board prints shows on screen.
-   - It refuses to overwrite an existing file with the same name.
-   - Tested against a loopback serial port.
-   - The CSVs are gitignored (`*.csv`). 10 minutes is about 6 MB.
-3. **`host/analyze_rest.py`** reads one recording, prints a report, and saves `data/plots/<name>_bias.png` and `<name>_drift.png`. It reports:
-   - **Timing:** the typical and overall rate per sensor, gaps (a step over 1.5× the typical one), samples lost, the longest step, and any timestamps that went backwards. It also handles the `micros()` rollover every ~71.6 min.
-   - **Gyro bias** (mean) **and noise** (std) per axis, in rad/s and deg/s. At rest the true rate is 0, so the mean *is* the bias.
-   - **Bias over time:** a 30 s rolling mean, plotted against seconds since power-on. Averaging 3000 samples cancels the noise but keeps a slow warm-up change. It also prints the change from the first to the last 30 s.
-   - **Accelerometer:** |a| against 9.81, and the tilt from level (the angle between gravity and the board's z axis).
-   - **Gyro-only drift:** it integrates the raw gyro with `integrate()` from the sim, using each sample's real dt from the timestamps. The error angle is 2·arccos(|w|), the same formula as the sim, because at rest the true orientation never changes. It plots three curves on one figure (linear and log-log), each with a fitted growth exponent p:
-     - the real raw gyro
-     - **the sim run with this recording's own bias and noise**
-     - the real gyro minus its own mean (hindsight, the best case for bias removal)
-4. **Recording: skipped.** The board wasn't plugged in (no `/dev/cu.usbmodem*`). Even when it is, my sandbox can't open serial ports, so you run this part. See below.
-5. **`sim/gyro_drift.py`:**
-   - It takes `--bias x y z`, `--sigma`, `--rate x y z` (`0 0 0` = at rest), `--seconds`, and `--dt`.
-   - The experiment moved under `if __name__ == "__main__":`, so `analyze_rest.py` can import the functions without rerunning everything.
-   - `drift_error()` now returns `(t, err)`, and `integrate()` accepts an array of dt values for real timestamps.
-   - With no options it reproduces the original exactly (69.2°, p = 0.97 / 0.46) and leaves `gyro_drift.png` byte-identical. Custom runs save to `gyro_drift_custom.png`.
-   - **Fit fix:** an orientation error can't exceed 180°. Past ~90° the curve bends over and folds back, which made the fit report nonsense like p = 0.12. `growth_exponent()` now fits only the part before the error first reaches 90°.
+### Results (simulated, 60 s, tilt error RMS)
+accel only 8.51°, gyro only 0.44°, complementary 1.69°, gyro + accel correction 1.55°, Madgwick 0.31°.
+- During the shake: accel only 22°, complementary 4.3°, Madgwick 0.5°.
+- 5 minutes with the gyro bias left in: gyro only reaches 91° of tilt error, Madgwick 0.44° RMS. Heading drifts 56° in both, because nothing corrects it.
 
-### How it was checked (no board)
-I made 10 minutes of fake data from `live_plot.py`'s generator, deleted 5 gyro rows, and shifted the timestamps so `micros()` rolls over at 300 s. The analysis got back exactly what went in:
+### Lesson: a "sensible" fix that made it worse
+I first ignored accelerometer samples whose length was more than 15% from 9.81 (a shaken board). The shake error went from 4.3° to 12.7°. During a shake the length also passes through 9.81 when the reading is gravity mirrored about the shake axis, so the filter kept exactly the misleading samples. Removed it. Measure before keeping a fix.
 
-| | put in | measured |
-|---|---|---|
-| gyro bias (rad/s) | +0.010, −0.005, +0.020 | +0.01001, −0.00503, +0.02003 |
-| gyro noise (rad/s) | 0.010 | 0.01002, 0.01000, 0.01004 |
-| rate | 100 Hz | 100.0 Hz |
-| gaps | 1 gap, 5 samples | 1 gap, ~5 samples lost, 0 backwards |
-| drift growth p | bias → 1 | real 1.01, sim 1.00 |
+### To do on the board
+1. Upload `imu`. In the serial monitor, check that `q` rows appear.
+2. Record 5 minutes: `record.py <port> --seconds 300 --label move1`. Keep it still for the first 3 s, then tilt, turn and shake it, and set it down for the last minute.
+3. `compare.py data/<date>_move1.csv`. If it prints "inverting", the BNO085's quaternion is world-to-board; the script handles it.
+4. `view3d.py <port>`: tilt the right edge down and check the box rolls the same way. If an axis is mirrored, the board's axes differ from what the code assumes.
+5. Put the real table in the README, and record the demo video from `view3d.py`.
+6. Still open from before: the 10-minute at-rest recording and the two I2C scan addresses.
 
-I deleted the fake plots afterwards, so `data/plots/` only ever holds real runs.
-
-### To do when you're back: run the recording
-1. Upload the `imu` env (for the 3 s timeout). Close the serial monitor and any `live_plot` windows.
-2. Put the board somewhere it won't get bumped: flat on the desk, cable not pulling on it.
-3. **Unplug USB, plug it back in** (that's the power-on), then immediately run:
-   ```
-   .venv/bin/python host/record.py /dev/cu.usbmodem101 --seconds 600 --label rest1
-   ```
-   Don't touch the board or the desk for 10 minutes.
-4. ```
-   .venv/bin/python host/analyze_rest.py data/2026-11-05_rest1.csv
-   ```
-   Change the date to the day you record.
-5. Questions to answer from the output:
-   - Is the bias around 0.002 rad/s or smaller? Readings were within ±0.008 at rest on hardware day.
-   - Does the rolling mean settle after a few minutes (warm-up)?
-   - Does the real drift curve follow the sim's dashed line? If it bends away, the bias isn't constant. That would be the warm-up, which the sim doesn't model.
-   - How small does "minus its own mean" stay? That shows how much a one-time bias calibration at power-on would save.
-   - Plug the numbers into `sim/gyro_drift.py --bias … --sigma … --rate 0 0 0 --seconds 600` for the README.
-
-Still to fill in from hardware day: the two scan addresses.
-
-## Next: complementary filter (roll and pitch)
-
-Goal: roll and pitch that **don't drift** (unlike the gyro) and **aren't noisy or shaken around** (unlike the accelerometer). This is the plan and the math. The code is yours to write.
-
-### The two sensors, and why neither works alone
-- **Gyro → angle by integrating.** It's smooth and reacts instantly, but the bias integrates into an error that grows forever (analyzed above: p ≈ 1).
-- **Accelerometer → angle from gravity.** It never drifts, because gravity always points down. But it's noisy, and any real acceleration (shaking, moving the board) looks like gravity tilting.
-- The fix: trust the gyro over short times and the accelerometer over long times.
-
-### Math 1: tilt from the accelerometer
-At rest the accelerometer reads gravity's reaction, a vector of length g pointing **up**, written in the board's own axes. For roll φ (about x), then pitch θ (about y):
-
-  a = g · [ −sin θ,  sin φ cos θ,  cos φ cos θ ]
-
-Take ratios so g cancels:
-- a_y / a_z = tan φ  →  **φ = atan2(a_y, a_z)**
-- a_x / √(a_y² + a_z²) = −sin θ / cos θ  →  **θ = atan2(−a_x, √(a_y² + a_z²))**
-
-Because these are ratios, the 2–4% magnitude error measured on hardware day mostly cancels: only differences *between* axes matter. Use `atan2`, not `atan`, so all four quadrants come out right. Yaw (heading) never appears in this vector, because spinning about gravity doesn't change what gravity looks like. So the accelerometer can't fix yaw, and yaw keeps drifting. Fixing it needs the magnetometer (Week 3).
-
-### Math 2: angle rates from the gyro
-The gyro gives body rates ω = (ω_x, ω_y, ω_z), not Euler angle rates. The exact conversion (ZYX angles) is:
-- φ̇ = ω_x + sin φ · tan θ · ω_y + cos φ · tan θ · ω_z
-- θ̇ = cos φ · ω_y − sin φ · ω_z
-
-For small angles this is φ̇ ≈ ω_x and θ̇ ≈ ω_y. Start with the simple version, then switch to the exact one and compare at 45° of tilt. The `tan θ` term blows up at θ = ±90°: that's gimbal lock, and it's why the later filters use quaternions.
-
-### Math 3: the blend
-Every gyro sample, with dt taken from the timestamps:
-
-  φ ← α · (φ + φ̇ · dt) + (1 − α) · φ_accel,    α = τ / (τ + dt)
-
-- τ is the crossover time constant: gyro below τ, accelerometer above it. With τ = 1 s at 100 Hz, α ≈ 0.990.
-- It's called "complementary" because the gyro path is high-passed and the accelerometer path low-passed with the same τ, so the two weights add to exactly 1. A steady real angle passes through unchanged.
-- **Prediction you can test:** at rest, with gyro bias b, the angle settles at a fixed error instead of growing. Setting φ = α(φ + b·dt) gives (1−α)φ = α·b·dt, so **error = b·τ**. For example, b = 0.002 rad/s with τ = 1 s gives 0.002 rad = 0.11°, compared with ~69° of gyro-only drift over 10 min.
-
-### Steps
-1. Create `host/comp_filter.py` and reuse `load()` from `analyze_rest.py` to read a recording.
-2. Write `accel_angles(a)` → (roll, pitch). Test with known answers before using real data:
-   - [0, 0, 9.81] → (0°, 0°)
-   - [0, 9.81, 0] → roll 90°
-   - [−9.81, 0, 0] → pitch 90°
-   - 2× any vector → same angles
-3. Gyro-only angles, small-angle version first. On `rest1` they should drift at the bias rate, matching the x/y angles that `analyze_rest.py` prints.
-4. The blend. Gyro (100 Hz) and accel (~123 Hz) arrive separately, so on each gyro sample use the **most recent** accel reading.
-5. **Rest test:** run on `rest1` and check that the steady error ≈ b·τ (step 3's prediction), and that its noise is far below accel-only.
-6. **Motion test:** record `tilt1` (`record.py --label tilt1 --seconds 60`): flat, tilt to ~45° and hold, rock it, shake it, set it back. Plot accel-only, gyro-only, and complementary on one figure.
-7. **Sweep τ** (0.1, 1, 10 s) and explain the trade-off with numbers:
-   - small τ: noisy, and shaking bleeds in
-   - large τ: bias error b·τ, and slow to recover
-8. Later: port the same few lines into the firmware so the board outputs angles itself.
-
-### Pitfalls
-- **Units:** the gyro is in rad/s and `atan2` returns radians. Convert to degrees only for printing and plots.
-- **dt:** use real timestamp differences, not 0.01 (the accelerometer isn't at 100 Hz, and gaps happen).
-- **Start-up:** initialize φ and θ from the first accel reading, not from 0, or the filter spends ~τ seconds converging.
-- **Sign conventions:** check the board's axis arrows printed on the BNO085. Tilt the right side down and confirm roll goes the way you expect.
+### Not done
+- **Magnetometer.** Without it heading drifts. Adding it means the 9-axis Madgwick and a magnetometer calibration.
+- **Filter on the board.** The filters run in Python; the ESP32 only streams.
+- **Understanding it.** I should re-derive the three filters by hand (the math is in the comments of `filters.py`) before explaining them in an interview.

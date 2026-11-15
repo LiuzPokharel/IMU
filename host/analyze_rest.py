@@ -27,13 +27,16 @@ def unwrap_us(t):
 
 
 def load(path):
-    """Read a recording into {"g": (t, xyz), "a": (t, xyz)}. t is seconds since board power-on, xyz is (N, 3)."""
+    """Read a recording into {"g": (t, xyz), "a": (t, xyz)}. t is seconds since board power-on, xyz is (N, 3).
+    Recordings that include the BNO085's own orientation also get "q": (t, wxyz)."""
     with open(path) as f:
         next(f)   # skip the header
         rows = [line.rstrip().split(",") for line in f]
     data = {}
-    for sensor in ("g", "a"):
+    for sensor in ("g", "a", "q"):
         arr = np.array([[r[0], *r[2:]] for r in rows if r[1] == sensor], dtype=float)
+        if not len(arr):
+            continue   # older recordings have no q rows
         data[sensor] = unwrap_us(arr[:, 0]) / 1e6, arr[:, 1:]
     return data
 

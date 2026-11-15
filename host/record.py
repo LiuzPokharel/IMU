@@ -21,7 +21,7 @@ def record(ser, out, seconds, every=30):
     Only rows that parse are saved, so a half row from connecting mid-stream can't break the analysis.
     Anything else the board prints (e.g. "BNO085 not found") is shown on screen instead.
     """
-    counts = {"g": 0, "a": 0}
+    counts = {"g": 0, "a": 0, "q": 0}
     start = time.monotonic()
     next_report = start + every
     while (now := time.monotonic()) - start < seconds:
@@ -36,13 +36,13 @@ def record(ser, out, seconds, every=30):
         if now >= next_report:
             elapsed = now - start
             print(f"  {elapsed:4.0f} / {seconds:g} s   gyro {counts['g']} rows ({counts['g'] / elapsed:.1f} Hz)"
-                  f"   accel {counts['a']} rows ({counts['a'] / elapsed:.1f} Hz)")
+                  f"   accel {counts['a']} rows ({counts['a'] / elapsed:.1f} Hz)   orientation {counts['q']} rows")
             next_report += every
     return counts
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Record gyro + accel rows from the board to a CSV file.")
+    parser = argparse.ArgumentParser(description="Record gyro, accel and orientation rows from the board to a CSV file.")
     parser.add_argument("port", help="serial port, e.g. /dev/cu.usbmodem101 (list with: ls /dev/cu.usb*)")
     parser.add_argument("--seconds", type=float, default=600, help="how long to record (default 600 = 10 min)")
     parser.add_argument("--label", required=True, help="name for the run, e.g. rest1")
@@ -53,6 +53,6 @@ if __name__ == "__main__":
     ser = serial.Serial(args.port, 115200, timeout=1, exclusive=True)
     print(f"recording {args.seconds:g} s to {path}  (don't touch the board)")
     with open(path, "x") as out:   # "x": refuse to overwrite an earlier run with the same name
-        out.write("t_us,sensor,x,y,z\n")
+        out.write("t_us,sensor,x,y,z\n")   # q rows carry four values: w, x, y, z
         counts = record(ser, out, args.seconds)
-    print(f"done: {counts['g']} gyro rows, {counts['a']} accel rows -> {path}")
+    print(f"done: {counts['g']} gyro, {counts['a']} accel, {counts['q']} orientation rows -> {path}")

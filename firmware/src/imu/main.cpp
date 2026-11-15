@@ -23,6 +23,13 @@ void setup() {
         Serial.println("Could not enable accelerometer report");
         while (1) delay(10);
     }
+
+    // The BNO085's own fused orientation, from the same gyro + accelerometer and no magnetometer:
+    // the reference my filters are scored against.
+    if (!bno.enableReport(SH2_GAME_ROTATION_VECTOR, 10000)){
+        Serial.println("Could not enable game rotation vector report");
+        while (1) delay(10);
+    }
 }
 
 void loop() {
@@ -39,5 +46,10 @@ void loop() {
     }else if(value.sensorId == SH2_ACCELEROMETER){
         Serial.printf("%lu,a,%.6f,%.6f,%.6f\n", t_us,
                       value.un.accelerometer.x, value.un.accelerometer.y, value.un.accelerometer.z);
+    }else if(value.sensorId == SH2_GAME_ROTATION_VECTOR){
+        // w first, to match the Python side's [w, x, y, z]
+        Serial.printf("%lu,q,%.6f,%.6f,%.6f,%.6f\n", t_us,
+                      value.un.gameRotationVector.real, value.un.gameRotationVector.i,
+                      value.un.gameRotationVector.j, value.un.gameRotationVector.k);
     }
 }

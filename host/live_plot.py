@@ -45,9 +45,10 @@ def serial_lines(ser):
 
 
 def parse(line):
-    """'timestamp_us,sensor,x,y,z' -> (t_us, sensor, [x, y, z]), or None if it isn't a data row."""
+    """'timestamp_us,sensor,x,y,z' -> (t_us, sensor, [x, y, z]), or None if it isn't a data row.
+    Sensors: g gyro, a accel (3 values each), q the BNO085's own orientation (4 values: w, x, y, z)."""
     parts = line.split(",")
-    if len(parts) != 5 or parts[1] not in ("g", "a"):
+    if len(parts) < 2 or len(parts) - 2 != {"g": 3, "a": 3, "q": 4}.get(parts[1]):
         return None
     try:
         return int(parts[0]), parts[1], [float(v) for v in parts[2:]]
@@ -63,7 +64,8 @@ def read_stream(lines, data):
             print(line)   # not data, e.g. "BNO085 not found" from the firmware
             continue
         t_us, sensor, values = row
-        data[sensor].append((t_us, *values))
+        if sensor in data:   # this plot shows gyro and accel only
+            data[sensor].append((t_us, *values))
 
 
 def draw(data, ax, plots, name, unit):
@@ -87,6 +89,8 @@ def draw(data, ax, plots, name, unit):
 
 # --- Sanity checks -------------------------------------------------------
 assert parse("1000,g,0.1,-0.2,0.3") == (1000, "g", [0.1, -0.2, 0.3])
+assert parse("1000,q,1,0,0,0") == (1000, "q", [1.0, 0.0, 0.0, 0.0])
+assert parse("1000,q,1,0,0") is None   # a quaternion needs 4 values
 assert parse("BNO085 not found") is None
 assert parse("1000,x,0.1,-0.2,0.3") is None   # unknown sensor
 assert parse("1000,g,0.1,-0.,oops") is None   # damaged number
