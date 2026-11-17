@@ -131,7 +131,18 @@ if __name__ == "__main__":
     lines = paced(to_lines(fake_recording(120))) if args.fake else \
         serial_lines(serial.Serial(args.port, 115200, timeout=1, exclusive=True))
     rows = deque()   # filled by the background thread, emptied by the draw loop
-    threading.Thread(target=lambda: rows.extend(r for r in map(parse, lines) if r), daemon=True).start()
+    seen = {"g": 0, "a": 0, "q": 0}
+
+    def read():
+        for line in lines:
+            row = parse(line)
+            if row:
+                rows.append(row)
+                seen[row[1]] += 1
+            else:
+                print(f"  board says: {line}")   # e.g. "BNO085 not found"
+
+    threading.Thread(target=read, daemon=True).start()
     tracker = Tracker(args.beta)
 
     fig = plt.figure(figsize=(7, 7))
@@ -150,7 +161,11 @@ if __name__ == "__main__":
         while rows:
             tracker.feed(*rows.popleft())
         if tracker.q is None:
-            ax.set_title(f"Hold the board still: measuring gyro bias ({CALIBRATE_S:g} s)…", loc="left", fontsize=10)
+            # the row counts show what is (not) arriving if this message never goes away
+            ax.set_title(f"Hold the board still: measuring gyro bias ({CALIBRATE_S:g} s)…\n"
+                         f"rows so far: gyro {seen['g']}, accel {seen['a']}, orientation {seen['q']}"
+                         + ("   NO DATA: press RESET on the board" if time.monotonic() - start > 4 and not seen["g"] else ""),
+                         loc="left", fontsize=10)
         else:
             box.set_verts([(CORNERS @ rot_matrix(tracker.q).T)[f] for f in FACES])
             roll, pitch, yaw = np.degrees(euler(tracker.q))
@@ -159,6 +174,8 @@ if __name__ == "__main__":
                 ref = CORNERS @ rot_matrix(tracker.q_ref).T * 1.03   # a hair larger so it shows around the box
                 outline.set_segments([[ref[a], ref[b]] for a, b in EDGES])
                 title += f"\nBNO085 fusion (dashed)   difference {tracker.error_deg():.1f}°"
+            elif not seen["q"]:
+                title += "\nno q rows from the board: upload the current imu firmware for the BNO085 outline"
             ax.set_title(title, loc="left", fontsize=10)
         plt.pause(0.03)
     if args.save:

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include <Adafruit_BNO08x.h>
 Adafruit_BNO08x bno;
 
@@ -13,6 +14,10 @@ void setup() {
         Serial.println("BNO085 not found");
         while (1) delay(10);
     }
+
+    // I2C defaults to 100 kHz. With three reports on, that bus was full: the gyro arrived at 48 Hz
+    // instead of 100 (measured 2026-11-16). 400 kHz is the BNO085's fast mode.
+    Wire.setClock(400000);
 
     if (!bno.enableReport(SH2_GYROSCOPE_UNCALIBRATED, 10000)){
         Serial.println("Could not enable uncalibrated gyro report");

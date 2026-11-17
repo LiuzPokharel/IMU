@@ -89,3 +89,13 @@ I first ignored accelerometer samples whose length was more than 15% from 9.81 (
 - **Magnetometer.** Without it heading drifts. Adding it means the 9-axis Madgwick and a magnetometer calibration.
 - **Filter on the board.** The filters run in Python; the ESP32 only streams.
 - **Understanding it.** I should re-derive the three filters by hand (the math is in the comments of `filters.py`) before explaining them in an interview.
+
+## 2026-11-16: first real recordings
+- New firmware uploaded; `q` rows arrive. `view3d.py` follows the board.
+- **10 minutes at rest (`rest1`):**
+  - Gyro bias: +0.0019, −0.0027, +0.0006 rad/s (0.11, −0.15, 0.04 deg/s). Noise 0.002–0.003 rad/s per axis.
+  - The bias is steady: it changed by under 0.02 deg/s between the first and last 30 s, so there is no real warm-up drift. One small step in y and z about 28 s after power-on.
+  - Gyro-only drift: **115.8° after 10 minutes**, growing as t^1.02. The simulation fed this run's own bias and noise gives 115.6°. Subtracting the mean bias leaves **0.43°**.
+  - Accelerometer reads 9.44 m/s², 3.8% under 9.81. The board sat tilted 9.1° (the cable lifts one end).
+- **Problem found: the gyro only arrived at 48 Hz, not 100.** Gyro 48 Hz, orientation 52 Hz, accel 126 Hz. Adding the third report filled the I2C bus at its default 100 kHz. Fix: `Wire.setClock(400000)` after `begin_I2C()`. Compiles; needs uploading and a check that `record.py` shows about 100 Hz for the gyro.
+- `view3d.py` now shows how many rows have arrived and prints messages from the board.
