@@ -105,3 +105,16 @@ I first ignored accelerometer samples whose length was more than 15% from 9.81 (
   - Heading drifted 2.6° away from the BNO085's in 5 minutes.
   - A 2 s bias measurement is not enough for gyro-only: it still drifts about 1°/min. The filters remove that for tilt.
 - Still needed: a real movement recording (`move2`).
+- **Mount (`cad/`):** `mount.py` writes `mount.stl`, a plate 88.2 × 28.9 × 2.4 mm with eight 5 mm posts for M2.5 screws, holding the Feather and the BNO085 side by side. Hole positions follow Adafruit's standard layout (0.1 inch in from each edge); not yet measured against the boards or printed. The slicer makes the G-code, on the printer owner's machine.
+- **Demo video (`demo/imu-demo.mov`):** the board in hand with `view3d.py` following it. iPhone videos carry the GPS location of where they were filmed, and trimming in QuickTime keeps it. The committed copy has the coordinates blanked; the originals are gitignored.
+
+### Lessons
+- **Adding a sensor report can slow the others.** Three reports at 100 Hz didn't fit through I2C at 100 kHz, and the gyro silently dropped to 48 Hz. Nothing errored; only the timestamps showed it. Check the measured rate after every firmware change.
+- **A tool's own message can spoil a measurement.** `record.py` said "don't touch the board" on a run that was meant to have movement.
+- **Check a phone video's metadata before publishing it.**
+
+### Next
+1. Record `move2` with real movement (still for 3 s, then tilt, turn and shake, then set down) and run `compare.py` on it.
+2. Put the real results table in the README.
+3. Measure the boards' hole spacing, then print the mount.
+4. Fill in the two I2C scan addresses from hardware day.
