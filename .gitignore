@@ -5,3 +5,6 @@ __pycache__/
 .DS_Store
 *.csv
 CLAUDE.md
+demo/demoVid.MOV
+cad.zip
+demo/IMUdemoVid.MOV

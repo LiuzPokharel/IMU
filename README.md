@@ -2,6 +2,9 @@
 
 Estimating 3D orientation from a 9-DOF IMU with filters written from scratch, no fusion library (complementary → quaternion integration → Madgwick), then measuring how my estimate compares to the BNO085's onboard sensor fusion.
 
+## Demo
+[Demo video](demo/imu-demo.mov): the board in hand, with `host/view3d.py` drawing its orientation live. The solid box is the Madgwick filter running on the raw gyro and accelerometer; the dashed outline is the BNO085's own fusion.
+
 ## Hardware
 - Adafruit ESP32-S3 Feather (4MB Flash / 2MB PSRAM)
 - Adafruit BNO085 9-DOF IMU, connected over I2C via STEMMA QT
