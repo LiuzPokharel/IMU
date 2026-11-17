@@ -51,7 +51,8 @@ if __name__ == "__main__":
     DATA.mkdir(exist_ok=True)
     path = DATA / f"{date.today().isoformat()}_{args.label}.csv"
     ser = serial.Serial(args.port, 115200, timeout=1, exclusive=True)
-    print(f"recording {args.seconds:g} s to {path}  (don't touch the board)")
+    print(f"recording {args.seconds:g} s to {path}")
+    print("  at-rest run: don't touch the board. Movement run: hold still for 3 s, then move it.")
     with open(path, "x") as out:   # "x": refuse to overwrite an earlier run with the same name
         out.write("t_us,sensor,x,y,z\n")   # q rows carry four values: w, x, y, z
         counts = record(ser, out, args.seconds)

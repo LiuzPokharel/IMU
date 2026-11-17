@@ -99,3 +99,9 @@ I first ignored accelerometer samples whose length was more than 15% from 9.81 (
   - Accelerometer reads 9.44 m/s², 3.8% under 9.81. The board sat tilted 9.1° (the cable lifts one end).
 - **Problem found: the gyro only arrived at 48 Hz, not 100.** Gyro 48 Hz, orientation 52 Hz, accel 126 Hz. Adding the third report filled the I2C bus at its default 100 kHz. Fix: `Wire.setClock(400000)` after `begin_I2C()`. Compiles; needs uploading and a check that `record.py` shows about 100 Hz for the gyro.
 - `view3d.py` now shows how many rows have arrived and prints messages from the board.
+- **I2C fix confirmed:** after uploading, the gyro arrives at 99.8 Hz, orientation 99.8 Hz, accel 126 Hz.
+- **`move1` (5 min) turned out to be another at-rest run:** `record.py` printed "don't touch the board", so the board never moved (roll −2.5°, pitch 8.5° throughout). Message fixed. Still useful as a rest test against the BNO085's own fusion, gyro bias measured over the first 2 s and removed:
+  - Tilt error RMS: complementary 0.03°, gyro + accel correction 0.03°, Madgwick 0.13°, accel only 0.17°, gyro only 2.77° (4.4° by the end).
+  - Heading drifted 2.6° away from the BNO085's in 5 minutes.
+  - A 2 s bias measurement is not enough for gyro-only: it still drifts about 1°/min. The filters remove that for tilt.
+- Still needed: a real movement recording (`move2`).
